@@ -1,5 +1,7 @@
+import dxfPath from "../assets/HAD-SC-P-100-002.dxf?url";
+
 export const CONFIG = {
-  dxfPath: "/assets/HAD-SC-P-100-002.dxf",
+  dxfPath,
   scale: 0.01,
   wallLayers: new Set(["A-WALL", "I-WALL"]),
   doorLayers: new Set(["A-DOOR"]),

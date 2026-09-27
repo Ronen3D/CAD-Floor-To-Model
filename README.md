@@ -45,6 +45,14 @@ This project reads a 2D DXF floor plan, extracts architectural data (walls, door
 
    npm run preview
 
+## GitHub Pages Deployment
+
+The site is deployed from the production Vite build by the GitHub Actions workflow in `.github/workflows/deploy-pages.yml`.
+
+Before the first deployment, open the repository's **Settings > Pages** and select **GitHub Actions** as the build and deployment source. After pushing to `main`, the workflow publishes the site at:
+
+https://ronen3d.github.io/CAD-Floor-To-Model/
+
 ## Navigation and Controls
 
 ### Startup
