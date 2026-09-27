@@ -84,6 +84,16 @@ h1 {
   filter: brightness(1.05);
 }
 
+#enter-btn:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+
+#enter-btn:disabled:hover {
+  transform: none;
+  filter: none;
+}
+
 #toggle-hud-btn {
   position: fixed;
   top: 18px;

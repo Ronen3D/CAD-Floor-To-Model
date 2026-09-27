@@ -6,6 +6,7 @@ import {
   Clock,
   Color,
   DirectionalLight,
+  Euler,
   Group,
   HemisphereLight,
   Matrix4,
@@ -24,7 +25,6 @@ import {
   WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export function createViewer(canvas, buildingModel, config) {
@@ -96,17 +96,17 @@ export function createViewer(canvas, buildingModel, config) {
   );
   building.add(doorsGroup);
 
-  const controls = new PointerLockControls(camera, renderer.domElement);
-  controls.pointerSpeed = 1 / 10;
-  scene.add(controls.object);
+  const controls = createWalkControls(camera);
 
   const keyboard = {
     forward: false,
     backward: false,
-    left: false,
-    right: false,
+    strafeLeft: false,
+    strafeRight: false,
     up: false,
     down: false,
+    turnLeft: false,
+    turnRight: false,
   };
 
   attachKeyboardListeners(keyboard);
@@ -116,8 +116,9 @@ export function createViewer(canvas, buildingModel, config) {
   const wallCollisionRadius = collisionRadius + config.wallThicknessMeters * 0.5;
   const collisionIterations = 4;
 
-  const topViewHeight = resolveTopViewHeight(buildingModel, config);
-  const topViewFocus = resolveTopViewFocus(buildingModel, startPosition);
+  const modelBounds = getModelBounds(buildingModel);
+  const topViewFocus = resolveTopViewFocus(modelBounds, startPosition);
+  let topViewHeight = resolveTopViewHeight(modelBounds, camera, config);
   const orbitControls = new OrbitControls(camera, renderer.domElement);
   orbitControls.enabled = false;
   orbitControls.enableDamping = true;
@@ -155,8 +156,22 @@ export function createViewer(canvas, buildingModel, config) {
   const levelLookDirection = new Vector3();
   const up = new Vector3(0, 1, 0);
   const proposedPosition = new Vector3();
+  const lookState = createLookState(camera);
   const clock = new Clock();
   const walkSpeed = 3.8;
+  const turnSpeed = Math.PI * 0.75;
+  const dragLookSensitivity = 0.0022;
+  const maxPitch = Math.PI * 0.49;
+  const dragState = {
+    isDown: false,
+    dragWalkLook: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    suppressClick: false,
+  };
 
   resolveCameraCollision(controls.object.position, collisionWalls, doorStates, wallCollisionRadius, collisionIterations);
 
@@ -164,27 +179,42 @@ export function createViewer(canvas, buildingModel, config) {
     events.dispatchEvent(new CustomEvent("modechange", { detail: { topViewActive } }));
   }
 
-  function enterTopView() {
+  function enterTopView(options = {}) {
     if (topViewActive) {
       return;
     }
+
+    const { immediate = false, fitToModel = true } = options;
 
     topViewActive = true;
     savedWalkPosition.copy(controls.object.position);
     savedWalkQuaternion.copy(camera.quaternion);
 
-    if (document.pointerLockElement === canvas) {
-      controls.unlock();
+    if (fitToModel) {
+      topViewHeight = resolveTopViewHeight(modelBounds, camera, config);
+      orbitControls.maxDistance = Math.max(topViewHeight * 3, 20);
     }
 
     setTopViewCameraPose(transitionTargetPosition, topViewFocus, topViewHeight);
     lookTarget.set(topViewFocus.x, 0, topViewFocus.z);
     setCameraLookQuaternion(transitionTargetPosition, lookTarget, transitionTargetQuaternion);
-    startCameraTransition(transitionTargetPosition, transitionTargetQuaternion, () => {
+
+    const activateTopViewOrbit = () => {
       orbitControls.target.set(topViewFocus.x, 0, topViewFocus.z);
       orbitControls.enabled = true;
       orbitControls.update();
-    });
+    };
+
+    if (immediate) {
+      cameraTransition.active = false;
+      cameraTransition.onComplete = null;
+      controls.object.position.copy(transitionTargetPosition);
+      camera.quaternion.copy(transitionTargetQuaternion);
+      activateTopViewOrbit();
+    } else {
+      startCameraTransition(transitionTargetPosition, transitionTargetQuaternion, activateTopViewOrbit);
+    }
+
     emitModeChange();
   }
 
@@ -193,7 +223,7 @@ export function createViewer(canvas, buildingModel, config) {
       return;
     }
 
-    const { restoreWalkPose = true, lockAfterExit = false, levelWalkView = false } = options;
+    const { restoreWalkPose = true, levelWalkView = false } = options;
     topViewActive = false;
     orbitControls.enabled = false;
 
@@ -209,11 +239,7 @@ export function createViewer(canvas, buildingModel, config) {
       transitionTargetQuaternion.copy(savedWalkQuaternion);
     }
 
-    startCameraTransition(transitionTargetPosition, transitionTargetQuaternion, () => {
-      if (lockAfterExit) {
-        controls.lock();
-      }
-    });
+    startCameraTransition(transitionTargetPosition, transitionTargetQuaternion);
     emitModeChange();
   }
 
@@ -250,7 +276,7 @@ export function createViewer(canvas, buildingModel, config) {
       }),
     );
 
-    exitTopView({ restoreWalkPose: false, lockAfterExit: true, levelWalkView: true });
+    exitTopView({ restoreWalkPose: false, levelWalkView: true });
   }
 
   function openDoorAtPointer(event) {
@@ -267,6 +293,19 @@ export function createViewer(canvas, buildingModel, config) {
     if (hit) {
       hit.object.userData.doorState.opening = true;
     }
+  }
+
+  function handleCanvasClick(event) {
+    if (consumeSuppressedClick()) {
+      return;
+    }
+
+    if (topViewActive) {
+      pickFloorAndEnterWalk(event);
+      return;
+    }
+
+    openDoorAtPointer(event);
   }
 
   function setLevelWalkQuaternion(position, sourceQuaternion, targetQuaternion) {
@@ -322,22 +361,111 @@ export function createViewer(canvas, buildingModel, config) {
       const onComplete = cameraTransition.onComplete;
       cameraTransition.onComplete = null;
       onComplete?.();
+
+      if (!topViewActive) {
+        syncLookState(lookState, camera);
+      }
     }
   }
 
-  renderer.domElement.addEventListener("click", openDoorAtPointer);
-  renderer.domElement.addEventListener("click", pickFloorAndEnterWalk);
+  function onMouseDown(event) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    dragState.isDown = true;
+    dragState.moved = false;
+    dragState.startX = event.clientX;
+    dragState.startY = event.clientY;
+    dragState.lastX = event.clientX;
+    dragState.lastY = event.clientY;
+    dragState.dragWalkLook = !topViewActive && !cameraTransition.active;
+  }
+
+  function onMouseMove(event) {
+    if (!dragState.isDown) {
+      return;
+    }
+
+    const dx = event.clientX - dragState.lastX;
+    const dy = event.clientY - dragState.lastY;
+    dragState.lastX = event.clientX;
+    dragState.lastY = event.clientY;
+
+    const movedDistance = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
+    if (movedDistance > 3) {
+      dragState.moved = true;
+    }
+
+    if (!dragState.dragWalkLook || topViewActive || cameraTransition.active) {
+      return;
+    }
+
+    lookState.yaw -= dx * dragLookSensitivity;
+    lookState.pitch = clamp(lookState.pitch - dy * dragLookSensitivity, -maxPitch, maxPitch);
+    applyLookState(camera, lookState);
+  }
+
+  function onMouseUp(event) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    if (dragState.isDown && dragState.moved) {
+      dragState.suppressClick = true;
+    }
+
+    dragState.isDown = false;
+    dragState.dragWalkLook = false;
+  }
+
+  function cancelMouseDrag() {
+    dragState.isDown = false;
+    dragState.dragWalkLook = false;
+  }
+
+  function consumeSuppressedClick() {
+    if (!dragState.suppressClick) {
+      return false;
+    }
+
+    dragState.suppressClick = false;
+    return true;
+  }
+
+  renderer.domElement.addEventListener("mousedown", onMouseDown);
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+  window.addEventListener("blur", cancelMouseDrag);
+  renderer.domElement.addEventListener("click", handleCanvasClick);
 
   emitModeChange();
 
   function animate() {
     const dt = Math.min(clock.getDelta(), 0.033);
+    const walkModeActive = !topViewActive && !cameraTransition.active;
+
+    if (walkModeActive) {
+      let turned = false;
+      if (keyboard.turnLeft) {
+        lookState.yaw += turnSpeed * dt;
+        turned = true;
+      }
+      if (keyboard.turnRight) {
+        lookState.yaw -= turnSpeed * dt;
+        turned = true;
+      }
+
+      if (turned) {
+        applyLookState(camera, lookState);
+      }
+    }
 
     direction.set(0, 0, 0);
     if (keyboard.forward) direction.z -= 1;
     if (keyboard.backward) direction.z += 1;
-    if (keyboard.left) direction.x -= 1;
-    if (keyboard.right) direction.x += 1;
+    if (keyboard.strafeLeft) direction.x -= 1;
+    if (keyboard.strafeRight) direction.x += 1;
     if (keyboard.up) direction.y += 1;
     if (keyboard.down) direction.y -= 1;
 
@@ -401,8 +529,7 @@ export function createViewer(canvas, buildingModel, config) {
 }
 
 function setTopViewCameraPose(position, focus, height) {
-  const offset = Math.max(0.001, height * 0.12);
-  position.set(focus.x + offset, height, focus.z + offset);
+  position.set(focus.x, height, focus.z);
 }
 
 function resolveStartPosition(buildingModel) {
@@ -421,8 +548,7 @@ function resolveStartPosition(buildingModel) {
   return { x: 0, z: 8 };
 }
 
-function resolveTopViewFocus(buildingModel, fallbackStartPosition) {
-  const bounds = getModelBounds(buildingModel);
+function resolveTopViewFocus(bounds, fallbackStartPosition) {
   if (!bounds) {
     return { x: fallbackStartPosition.x, z: fallbackStartPosition.z };
   }
@@ -433,16 +559,24 @@ function resolveTopViewFocus(buildingModel, fallbackStartPosition) {
   };
 }
 
-function resolveTopViewHeight(buildingModel, config) {
-  const bounds = getModelBounds(buildingModel);
+function resolveTopViewHeight(bounds, camera, config) {
   if (!bounds) {
     return Math.max(config.wallHeightMeters * 8, 10);
   }
 
-  const spanX = bounds.maxX - bounds.minX;
-  const spanZ = bounds.maxZ - bounds.minZ;
-  const span = Math.max(spanX, spanZ, 1);
-  return Math.max(config.wallHeightMeters * 8, span * 0.85);
+  const spanX = Math.max(bounds.maxX - bounds.minX, 1);
+  const spanZ = Math.max(bounds.maxZ - bounds.minZ, 1);
+  const margin = 1.12;
+  const halfWidth = (spanX * margin) / 2;
+  const halfDepth = (spanZ * margin) / 2;
+
+  const verticalFov = (camera.fov * Math.PI) / 180;
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(camera.aspect, 0.1));
+
+  const heightForDepth = halfDepth / Math.tan(verticalFov / 2);
+  const heightForWidth = halfWidth / Math.tan(horizontalFov / 2);
+
+  return Math.max(config.wallHeightMeters * 8, heightForDepth, heightForWidth);
 }
 
 function getModelBounds(buildingModel) {
@@ -644,6 +778,41 @@ function resolveCameraCollision(position, wallSegments, doorStates, collisionRad
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function createWalkControls(camera) {
+  const events = new EventTarget();
+
+  return {
+    object: camera,
+    lock: () => {
+      events.dispatchEvent(new Event("lock"));
+    },
+    unlock: () => {
+      events.dispatchEvent(new Event("unlock"));
+    },
+    addEventListener: (...args) => events.addEventListener(...args),
+    removeEventListener: (...args) => events.removeEventListener(...args),
+  };
+}
+
+function createLookState(camera) {
+  const euler = new Euler().setFromQuaternion(camera.quaternion, "YXZ");
+  return {
+    yaw: euler.y,
+    pitch: euler.x,
+  };
+}
+
+function syncLookState(lookState, camera) {
+  const euler = new Euler().setFromQuaternion(camera.quaternion, "YXZ");
+  lookState.yaw = euler.y;
+  lookState.pitch = euler.x;
+}
+
+function applyLookState(camera, lookState) {
+  const euler = new Euler(lookState.pitch, lookState.yaw, 0, "YXZ");
+  camera.quaternion.setFromEuler(euler);
 }
 
 function buildWallsMesh(walls, config) {
@@ -1113,14 +1282,14 @@ function createSeededRandom(seed) {
 
 function attachKeyboardListeners(keyboard) {
   const keyDownMap = {
-    KeyW: "forward",
-    KeyS: "backward",
-    KeyA: "left",
-    KeyD: "right",
-    ArrowUp: "forward",
-    ArrowDown: "backward",
-    ArrowLeft: "left",
-    ArrowRight: "right",
+    KeyW: "backward",
+    KeyS: "forward",
+    KeyA: "strafeLeft",
+    KeyD: "strafeRight",
+    ArrowUp: "backward",
+    ArrowDown: "forward",
+    ArrowLeft: "turnLeft",
+    ArrowRight: "turnRight",
     Space: "up",
     ShiftLeft: "down",
     ShiftRight: "down",

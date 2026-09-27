@@ -39,14 +39,8 @@ async function boot() {
 
     const viewer = createViewer(canvas, model, CONFIG);
 
-    const tryLockWalkMode = () => {
-      if (!viewer.isTopViewActive() && document.pointerLockElement !== canvas) {
-        viewer.controls.lock();
-      }
-    };
-
-    setTimeout(tryLockWalkMode, 0);
-    canvas.addEventListener("pointerdown", tryLockWalkMode, { once: true });
+    button.textContent = "Walk mode active";
+    button.disabled = true;
 
     topViewButton.addEventListener("click", () => {
       if (viewer.isTopViewActive()) {
@@ -57,24 +51,23 @@ async function boot() {
       viewer.enterTopView();
     });
 
+    button.addEventListener("click", () => {
+      if (viewer.isTopViewActive()) {
+        viewer.exitTopView({ restoreWalkPose: false, levelWalkView: true });
+      }
+    });
+
     viewer.events.addEventListener("modechange", (event) => {
       const topViewActive = Boolean(event.detail?.topViewActive);
       topViewButton.classList.toggle("is-active", topViewActive);
       topViewButton.setAttribute("aria-pressed", String(topViewActive));
       topViewButton.textContent = topViewActive ? "Top view: click floor to walk" : "Top view";
+
+      button.disabled = !topViewActive;
+      button.textContent = topViewActive ? "Return to walk mode" : "Walk mode active";
     });
 
-    button.addEventListener("click", () => {
-      viewer.controls.lock();
-    });
-
-    viewer.controls.addEventListener("lock", () => {
-      button.textContent = "Walkthrough active";
-    });
-
-    viewer.controls.addEventListener("unlock", () => {
-      button.textContent = "Enter walkthrough mode";
-    });
+    viewer.enterTopView({ immediate: true, fitToModel: true });
   } catch (error) {
     console.error(error);
     statsElement.textContent = `Failed to build model: ${error.message}`;
