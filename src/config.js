@@ -11,6 +11,6 @@ export const CONFIG = {
   doorHeightMeters: 2.12,
   defaultDoorWidthMeters: 0.9,
   defaultDoubleDoorWidthMeters: 1.8,
-  floorPaddingMeters: 20.0,
+  floorPaddingMeters: 0,
   eyeHeightMeters: 1.72,
 };
