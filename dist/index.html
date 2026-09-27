@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CAD to Model Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="/assets/index-69Tj6fci.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-J5Iqkx-f.css">
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="viewport"></canvas>
+
+      <section class="hud is-hidden" id="hud">
+        <h1>DXF Architectural Viewer</h1>
+        <p class="subtitle">Three.js first-person prototype from DXF wall layers</p>
+        <button id="enter-btn">Enter walkthrough mode</button>
+        <p class="hint">Move: WASD or Arrow Keys | Look: Mouse | Up/Down: Space / Shift | Exit pointer lock: Esc</p>
+        <pre id="stats">Loading...</pre>
+      </section>
+
+      <button id="top-view-btn" type="button" aria-pressed="false">Top view</button>
+      <button id="toggle-hud-btn" type="button" aria-controls="hud" aria-expanded="false">Show panel</button>
+    </div>
+
+  </body>
+</html>
