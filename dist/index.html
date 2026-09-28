@@ -10,8 +10,8 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/CAD-Floor-To-Model/assets/index-CgSW3i3w.js"></script>
-    <link rel="stylesheet" crossorigin href="/CAD-Floor-To-Model/assets/index-u7fHxXaX.css">
+    <script type="module" crossorigin src="/CAD-Floor-To-Model/assets/index-DU2d1VIu.js"></script>
+    <link rel="stylesheet" crossorigin href="/CAD-Floor-To-Model/assets/index-BhrOeC3u.css">
   </head>
   <body>
     <div id="app">
@@ -28,6 +28,21 @@
       <aside class="minimap is-hidden" id="minimap" aria-hidden="true">
         <canvas aria-label="Building map showing the current camera position and view direction"></canvas>
       </aside>
+
+      <nav class="touch-controls" aria-label="Walk controls">
+        <button class="touch-control touch-control--forward" type="button" data-control="forward" aria-label="Move forward" title="Move forward">
+          <span aria-hidden="true">&uarr;</span>
+        </button>
+        <button class="touch-control touch-control--turn-left" type="button" data-control="turnLeft" aria-label="Turn left" title="Turn left">
+          <span aria-hidden="true">&larr;</span>
+        </button>
+        <button class="touch-control touch-control--backward" type="button" data-control="backward" aria-label="Move backward" title="Move backward">
+          <span aria-hidden="true">&darr;</span>
+        </button>
+        <button class="touch-control touch-control--turn-right" type="button" data-control="turnRight" aria-label="Turn right" title="Turn right">
+          <span aria-hidden="true">&rarr;</span>
+        </button>
+      </nav>
 
       <button id="top-view-btn" type="button" aria-pressed="false">Top view</button>
       <button id="toggle-hud-btn" type="button" aria-controls="hud" aria-expanded="false">Show panel</button>

@@ -42,6 +42,23 @@ async function boot() {
     const viewer = createViewer(canvas, model, CONFIG);
     const miniMap = createMiniMap(miniMapElement, model, viewer.camera);
     miniMap.setVisible(!viewer.isTopViewActive());
+    bindTouchControls(viewer);
+
+    const updateTopViewButton = (topViewActive) => {
+      const compactLabel = window.matchMedia("(max-width: 720px)").matches;
+      topViewButton.classList.toggle("is-active", topViewActive);
+      topViewButton.setAttribute("aria-pressed", String(topViewActive));
+      topViewButton.textContent = topViewActive ? (compactLabel ? "Exit map" : "Top view: click floor to walk") : "Top view";
+      topViewButton.setAttribute(
+        "aria-label",
+        topViewActive ? "Exit top view and return to walk mode" : "Open top view",
+      );
+      topViewButton.title = topViewButton.getAttribute("aria-label");
+    };
+
+    window.matchMedia("(max-width: 720px)").addEventListener("change", () => {
+      updateTopViewButton(viewer.isTopViewActive());
+    });
 
     button.textContent = "Walk mode active";
     button.disabled = true;
@@ -64,9 +81,7 @@ async function boot() {
     viewer.events.addEventListener("modechange", (event) => {
       const topViewActive = Boolean(event.detail?.topViewActive);
       miniMap.setVisible(!topViewActive);
-      topViewButton.classList.toggle("is-active", topViewActive);
-      topViewButton.setAttribute("aria-pressed", String(topViewActive));
-      topViewButton.textContent = topViewActive ? "Top view: click floor to walk" : "Top view";
+      updateTopViewButton(topViewActive);
 
       button.disabled = !topViewActive;
       button.textContent = topViewActive ? "Return to walk mode" : "Walk mode active";
@@ -80,6 +95,26 @@ async function boot() {
 }
 
 boot();
+
+function bindTouchControls(viewer) {
+  const controls = document.querySelectorAll("[data-control]");
+
+  for (const control of controls) {
+    const action = control.dataset.control;
+
+    const stop = () => viewer.setMovementAction(action, false);
+    control.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      control.setPointerCapture(event.pointerId);
+      viewer.setMovementAction(action, true);
+    });
+    control.addEventListener("pointerup", stop);
+    control.addEventListener("pointercancel", stop);
+    control.addEventListener("lostpointercapture", stop);
+  }
+
+  window.addEventListener("blur", () => viewer.clearMovementActions());
+}
 
 function createMiniMap(element, buildingModel, camera) {
   const canvas = element.querySelector("canvas");

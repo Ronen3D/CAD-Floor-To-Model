@@ -247,6 +247,18 @@ export function createViewer(canvas, buildingModel, config) {
     return topViewActive;
   }
 
+  function setMovementAction(action, isActive) {
+    if (action in keyboard) {
+      keyboard[action] = isActive;
+    }
+  }
+
+  function clearMovementActions() {
+    for (const action of Object.keys(keyboard)) {
+      keyboard[action] = false;
+    }
+  }
+
   function pickFloorAndEnterWalk(event) {
     if (!topViewActive || cameraTransition.active || floorMeshes.length === 0) {
       return;
@@ -462,8 +474,8 @@ export function createViewer(canvas, buildingModel, config) {
     }
 
     direction.set(0, 0, 0);
-    if (keyboard.forward) direction.z -= 1;
-    if (keyboard.backward) direction.z += 1;
+    if (keyboard.forward) direction.z += 1;
+    if (keyboard.backward) direction.z -= 1;
     if (keyboard.strafeLeft) direction.x -= 1;
     if (keyboard.strafeRight) direction.x += 1;
     if (keyboard.up) direction.y += 1;
@@ -525,6 +537,8 @@ export function createViewer(canvas, buildingModel, config) {
     enterTopView,
     exitTopView,
     isTopViewActive,
+    setMovementAction,
+    clearMovementActions,
   };
 }
 
@@ -1282,12 +1296,12 @@ function createSeededRandom(seed) {
 
 function attachKeyboardListeners(keyboard) {
   const keyDownMap = {
-    KeyW: "backward",
-    KeyS: "forward",
+    KeyW: "forward",
+    KeyS: "backward",
     KeyA: "strafeLeft",
     KeyD: "strafeRight",
-    ArrowUp: "backward",
-    ArrowDown: "forward",
+    ArrowUp: "forward",
+    ArrowDown: "backward",
     ArrowLeft: "turnLeft",
     ArrowRight: "turnRight",
     Space: "up",

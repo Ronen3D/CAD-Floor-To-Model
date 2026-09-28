@@ -27,6 +27,21 @@
         <canvas aria-label="Building map showing the current camera position and view direction"></canvas>
       </aside>
 
+      <nav class="touch-controls" aria-label="Walk controls">
+        <button class="touch-control touch-control--forward" type="button" data-control="forward" aria-label="Move forward" title="Move forward">
+          <span aria-hidden="true">&uarr;</span>
+        </button>
+        <button class="touch-control touch-control--turn-left" type="button" data-control="turnLeft" aria-label="Turn left" title="Turn left">
+          <span aria-hidden="true">&larr;</span>
+        </button>
+        <button class="touch-control touch-control--backward" type="button" data-control="backward" aria-label="Move backward" title="Move backward">
+          <span aria-hidden="true">&darr;</span>
+        </button>
+        <button class="touch-control touch-control--turn-right" type="button" data-control="turnRight" aria-label="Turn right" title="Turn right">
+          <span aria-hidden="true">&rarr;</span>
+        </button>
+      </nav>
+
       <button id="top-view-btn" type="button" aria-pressed="false">Top view</button>
       <button id="toggle-hud-btn" type="button" aria-controls="hud" aria-expanded="false">Show panel</button>
     </div>
